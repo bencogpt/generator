@@ -354,7 +354,7 @@
           </div>
           <div id="file-info" style="display:none"></div>
           <div id="file-alert"></div>
-          <div style="margin-top:12px" id="text-preview-wrap" style="display:none">
+          <div id="text-preview-wrap" style="margin-top:12px;display:none">
             <label>תצוגה מקדימה של הטקסט שחולץ</label>
             <textarea id="text-preview" style="height:100px;font-size:0.75rem;direction:rtl" readonly placeholder="הטקסט שחולץ מהקובץ יופיע כאן..."></textarea>
             <div style="font-size:0.72rem;color:var(--text3);margin-top:4px" id="char-count"></div>
@@ -718,12 +718,18 @@ function showFileInfo(file, text) {
   const ext = file.name.split('.').pop().toLowerCase();
   const icons = {txt:'📝',md:'📋',docx:'📄',doc:'📄',rtf:'📑',csv:'📊',json:'🔧',xml:'🔖',html:'🌐',htm:'🌐'};
   const icon = icons[ext] || '📄';
-  document.getElementById('file-info').style.display = 'block';
-  document.getElementById('file-info').innerHTML = `
+  // Collapse the drop zone, show compact file badge instead
+  document.getElementById('upload-zone').style.display = 'none';
+  const fi = document.getElementById('file-info');
+  fi.style.display = 'block';
+  fi.innerHTML = `
     <div class="file-badge">
       ${icon} <span class="fname">${file.name}</span>
-      <span style="color:var(--text3)">${(file.size/1024).toFixed(1)}KB</span>
+      <span style="color:var(--text3);flex-shrink:0">${(file.size/1024).toFixed(1)}KB</span>
       <span class="remove-file" onclick="removeFile()" title="הסר קובץ">✕</span>
+    </div>
+    <div style="margin-top:8px">
+      <button class="btn btn-secondary btn-sm btn-full" onclick="document.getElementById('file-input').click()">📂 החלף קובץ</button>
     </div>`;
   document.getElementById('text-preview-wrap').style.display = 'block';
   document.getElementById('text-preview').value = text.slice(0, 2000) + (text.length > 2000 ? '\n...(חלקי)' : '');
@@ -733,6 +739,7 @@ function showFileInfo(file, text) {
 
 function removeFile() {
   currentFile = null; extractedText = '';
+  document.getElementById('upload-zone').style.display = '';
   document.getElementById('file-info').style.display = 'none';
   document.getElementById('file-info').innerHTML = '';
   document.getElementById('text-preview-wrap').style.display = 'none';
@@ -1067,10 +1074,12 @@ function loadSettings() {
     const raw = localStorage.getItem('docgen_settings');
     if (!raw) { onProviderChange(); return; }
     const s = JSON.parse(raw);
-    if (s.provider) { document.getElementById('provider-select').value = s.provider; onProviderChange(); }
-    if (s.url)      document.getElementById('api-url').value = s.url;
+    // Set provider first (updates presets list) but restore saved url/model after
+    if (s.provider) document.getElementById('provider-select').value = s.provider;
+    onProviderChange(); // populate presets + set defaults
+    if (s.url)      document.getElementById('api-url').value = s.url;   // overwrite default with saved
     if (s.key)      document.getElementById('api-key').value = s.key;
-    if (s.model)    document.getElementById('model-name').value = s.model;
+    if (s.model)    document.getElementById('model-name').value = s.model; // overwrite default with saved
     if (s.temp)     document.getElementById('temperature').value = s.temp;
     if (s.maxTokens) document.getElementById('max-tokens').value = s.maxTokens;
     if (s.streaming !== undefined) document.getElementById('streaming-toggle').checked = s.streaming;
@@ -1282,9 +1291,12 @@ function rgba(c,a){return'rgba('+hx(c)+','+hy(c)+','+hz(c)+','+a+')'}
 function wrapLabel(s,max){if(typeof s!=='string')return s;if(s.length<=max)return s;var w=s.split(' '),ls=[],cur='';w.forEach(function(wd){if((cur+wd).length>max&&cur){ls.push(cur.trim());cur='';}cur+=wd+' ';});if(cur.trim())ls.push(cur.trim());return ls;}
 
 window.Chart=function(el,cfg){
-  var cv=typeof el==='string'?document.getElementById(el):el;
+  var cv;
+  if(typeof el==='string'){cv=document.getElementById(el);}
+  else if(el&&el.canvas){cv=el.canvas;} // CanvasRenderingContext2D passed
+  else{cv=el;}
   if(!cv)return;
-  var ctx=cv.getContext('2d');
+  var ctx=cv.getContext?cv.getContext('2d'):cv;
   var t=cfg.type,d=cfg.data,o=cfg.options||{};
   var W=cv.offsetWidth||cv.parentElement.offsetWidth||600;
   var H=cv.offsetHeight||cv.parentElement.offsetHeight||350;
@@ -1471,15 +1483,15 @@ function cleanHTML(raw) {
 }
 
 function injectOfflineAssets(html) {
-  // Remove any CDN script tags for Chart.js / Tailwind / fonts
-  html = html.replace(/<script[^>]+cdn\.jsdelivr\.net[^>]*><\/script>/gi, '');
-  html = html.replace(/<script[^>]+cdn\.tailwindcss\.com[^>]*><\/script>/gi, '');
-  html = html.replace(/<script[^>]+cdnjs\.cloudflare\.com[^>]*chart[^>]*><\/script>/gi, '');
-  html = html.replace(/<link[^>]+fonts\.googleapis\.com[^>]*>/gi, '');
-  html = html.replace(/<link[^>]+fonts\.gstatic\.com[^>]*>/gi, '');
-
-  // Strip any Tailwind inline script (cdn.tailwindcss.com)
-  html = html.replace(/<script[^>]+tailwindcss[^>]*>[\s\S]*?<\/script>/gi, '');
+  // Remove CDN <script> tags (chart.js, tailwind, etc.) — handles both <script src="..."></script> and self-closing
+  html = html.replace(/<script\b[^>]*\bsrc=["'][^"']*(?:cdn\.jsdelivr\.net|cdn\.tailwindcss\.com|cdnjs\.cloudflare\.com|unpkg\.com)[^"']*["'][^>]*>(\s*<\/script>)?/gi, '');
+  // Remove tailwind config inline scripts
+  html = html.replace(/<script\b[^>]*tailwindcss[^>]*>[\s\S]*?<\/script>/gi, '');
+  html = html.replace(/<script\b[^>]*>\s*tailwind\.config[\s\S]*?<\/script>/gi, '');
+  // Remove CDN <link> tags (fonts, tailwind CSS)
+  html = html.replace(/<link\b[^>]*\bhref=["'][^"']*(?:fonts\.googleapis\.com|fonts\.gstatic\.com|cdn\.tailwindcss\.com|cdn\.jsdelivr\.net[^"']*tailwind)[^"']*["'][^>]*\/?>/gi, '');
+  // Remove any remaining chart.js script tags
+  html = html.replace(/<script\b[^>]*chart(?:\.umd)?(?:\.min)?\.js[^>]*>(\s*<\/script>)?/gi, '');
 
   // Inject Chart.js inline before </head> or at top of <body>
   const chartScript = `<script>${INLINE_CHARTLIB}<\/script>`;
@@ -1664,7 +1676,8 @@ async function testConnection() {
 ═══════════════════════════════════════════════ */
 function setStatus(type, text) {
   const dot = document.getElementById('status-dot');
-  dot.className = 'status-dot' + (type === 'running' ? ' running' : type === 'done' ? ' done' : type === 'error' ? ' error' : '');
+  const cls = { running: ' running', done: ' done', error: ' error', reading: ' running' };
+  dot.className = 'status-dot' + (cls[type] || '');
   document.getElementById('status-text').textContent = text;
 }
 
@@ -1729,7 +1742,6 @@ function downloadHTML() {
    INIT
 ═══════════════════════════════════════════════ */
 loadSettings();
-onProviderChange();
 
 // Save settings on any change to key fields
 ['api-url','api-key','model-name','temperature','max-tokens'].forEach(id => {

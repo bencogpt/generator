@@ -1,0 +1,1271 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מחולל מסמכים אינטראקטיביים</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface2: #273449;
+    --border: #334155;
+    --accent: #3b82f6;
+    --accent2: #10b981;
+    --accent3: #8b5cf6;
+    --text: #f1f5f9;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --danger: #ef4444;
+    --warn: #f59e0b;
+    --radius: 12px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    direction: rtl;
+  }
+  a { color: var(--accent); }
+
+  /* ── Layout ── */
+  .app { display: grid; grid-template-rows: auto 1fr; min-height: 100vh; }
+  header {
+    background: linear-gradient(135deg, #1a2744 0%, #0f172a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { font-size: 28px; }
+  .logo-text h1 { font-size: 1.3rem; font-weight: 700; }
+  .logo-text p { font-size: 0.75rem; color: var(--text2); }
+  .header-actions { display: flex; gap: 10px; }
+
+  .main { display: grid; grid-template-columns: 380px 1fr; height: calc(100vh - 65px); overflow: hidden; }
+  .sidebar {
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+  .preview-area {
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar sections ── */
+  .section {
+    border-bottom: 1px solid var(--border);
+    padding: 20px;
+  }
+  .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .section-title {
+    font-size: 0.85rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--text2);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-toggle { color: var(--text3); font-size: 0.8rem; transition: transform 0.2s; }
+  .section-toggle.open { transform: rotate(180deg); }
+  .section-body { display: block; }
+  .section-body.hidden { display: none; }
+
+  /* ── Upload zone ── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--surface2);
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(59,130,246,0.08);
+  }
+  .upload-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .upload-icon { font-size: 2.5rem; margin-bottom: 10px; }
+  .upload-text { font-size: 0.9rem; color: var(--text2); }
+  .upload-hint { font-size: 0.75rem; color: var(--text3); margin-top: 6px; }
+  .file-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3);
+    border-radius: 8px; padding: 8px 12px; font-size: 0.85rem;
+    margin-top: 10px; max-width: 100%; overflow: hidden;
+  }
+  .file-badge .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+  .file-badge .remove-file { cursor: pointer; color: var(--text3); font-size: 1rem; flex-shrink: 0; }
+  .file-badge .remove-file:hover { color: var(--danger); }
+
+  /* ── Form fields ── */
+  label { display: block; font-size: 0.8rem; color: var(--text2); margin-bottom: 5px; margin-top: 12px; }
+  label:first-child { margin-top: 0; }
+  input[type=text], input[type=password], input[type=url], select, textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 9px 12px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    transition: border-color 0.2s;
+    direction: ltr;
+  }
+  input[type=text]:focus, input[type=password]:focus, input[type=url]:focus,
+  select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+  }
+  select option { background: var(--surface2); }
+  textarea { resize: vertical; min-height: 90px; font-size: 0.8rem; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 18px; border-radius: 8px; font-size: 0.88rem; font-weight: 600;
+    cursor: pointer; border: none; font-family: inherit; transition: all 0.15s;
+    text-decoration: none;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    box-shadow: 0 2px 12px rgba(59,130,246,0.35);
+  }
+  .btn-primary:hover { filter: brightness(1.1); box-shadow: 0 4px 20px rgba(59,130,246,0.5); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
+  .btn-secondary {
+    background: var(--surface2); color: var(--text2); border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--border); color: var(--text); }
+  .btn-ghost { background: transparent; color: var(--text2); padding: 8px 12px; }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .btn-danger { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+  .btn-danger:hover { background: rgba(239,68,68,0.25); }
+  .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+  .btn-full { width: 100%; }
+
+  .generate-wrap { padding: 20px; border-bottom: 1px solid var(--border); }
+
+  /* ── Status / Log ── */
+  .status-bar {
+    padding: 10px 16px;
+    font-size: 0.8rem;
+    color: var(--text2);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    min-height: 40px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    background: var(--text3);
+  }
+  .status-dot.running { background: var(--accent); animation: pulse 1s infinite; }
+  .status-dot.done { background: var(--accent2); }
+  .status-dot.error { background: var(--danger); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* ── Metrics panel ── */
+  .metrics-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px;
+  }
+  .metric-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .metric-label { font-size: 0.7rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; }
+  .metric-value { font-size: 1.3rem; font-weight: 700; margin-top: 4px; }
+  .metric-value.blue { color: var(--accent); }
+  .metric-value.green { color: var(--accent2); }
+  .metric-value.purple { color: var(--accent3); }
+  .metric-value.yellow { color: var(--warn); }
+  .metric-value.red { color: var(--danger); }
+  .metric-sub { font-size: 0.7rem; color: var(--text3); margin-top: 2px; }
+
+  /* ── Preview area ── */
+  .preview-toolbar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    flex-shrink: 0;
+  }
+  .preview-tabs { display: flex; gap: 6px; }
+  .tab-btn {
+    padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 500;
+    cursor: pointer; border: 1px solid transparent; background: transparent; color: var(--text2);
+    font-family: inherit; transition: all 0.15s;
+  }
+  .tab-btn.active {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .tab-btn:hover:not(.active) { background: var(--surface2); color: var(--text); }
+
+  .preview-actions { display: flex; gap: 8px; }
+
+  .preview-content { flex: 1; overflow: hidden; position: relative; }
+  iframe#output-iframe {
+    width: 100%; height: 100%; border: none;
+    background: white;
+  }
+  #source-view {
+    width: 100%; height: 100%; overflow: auto;
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    padding: 20px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    display: none;
+  }
+  .empty-state {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--text3); gap: 12px;
+  }
+  .empty-state-icon { font-size: 4rem; opacity: 0.5; }
+  .empty-state p { font-size: 0.95rem; }
+
+  /* ── Progress ── */
+  .progress-wrap { margin-top: 12px; }
+  .progress-bar {
+    height: 4px; background: var(--border); border-radius: 2px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px; width: 0%; transition: width 0.3s;
+  }
+  .progress-text { font-size: 0.75rem; color: var(--text3); margin-top: 5px; text-align: center; }
+
+  /* ── Alerts ── */
+  .alert {
+    padding: 10px 14px; border-radius: 8px; font-size: 0.82rem; margin-top: 10px;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .alert-warn { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); color: #fcd34d; }
+  .alert-err  { background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.3);  color: #fca5a5; }
+  .alert-ok   { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; }
+
+  /* ── Toggle switch ── */
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+  .toggle-label { font-size: 0.82rem; color: var(--text2); }
+  .toggle {
+    position: relative; display: inline-block;
+    width: 36px; height: 20px;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: var(--border); border-radius: 20px; transition: 0.2s;
+  }
+  .toggle-slider:before {
+    content: ''; position: absolute;
+    height: 14px; width: 14px; left: 3px; bottom: 3px;
+    background: white; border-radius: 50%; transition: 0.2s;
+  }
+  .toggle input:checked + .toggle-slider { background: var(--accent); }
+  .toggle input:checked + .toggle-slider:before { transform: translateX(16px); }
+
+  /* ── Token counter ── */
+  .token-mini {
+    display: inline-flex; gap: 6px; font-size: 0.75rem; color: var(--text3);
+    background: var(--surface2); padding: 4px 10px; border-radius: 20px;
+    border: 1px solid var(--border); align-items: center;
+  }
+  .token-mini span { color: var(--accent); font-weight: 600; }
+
+  /* ── Model presets ── */
+  .preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .preset-chip {
+    padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface2); color: var(--text2);
+    transition: all 0.15s;
+  }
+  .preset-chip:hover { border-color: var(--accent); color: var(--text); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    .sidebar { max-height: 55vh; overflow-y: auto; }
+    .preview-area { min-height: 45vh; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <div class="logo-text">
+        <h1>מחולל מסמכים אינטראקטיביים</h1>
+        <p>ממיר קבצי טקסט ל-HTML חי ומונפש</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="token-mini" id="session-tokens" style="display:none">
+        📊 סשן: <span id="sess-in">0</span>↑ <span id="sess-out">0</span>↓ tokens
+      </div>
+    </div>
+  </header>
+
+  <div class="main">
+
+    <!-- ═══ SIDEBAR ═══ -->
+    <div class="sidebar">
+
+      <!-- Upload -->
+      <div class="section">
+        <div class="section-header" onclick="toggleSection('upload')">
+          <span class="section-title">📂 קובץ מקור</span>
+          <span class="section-toggle open" id="toggle-upload">▼</span>
+        </div>
+        <div class="section-body" id="body-upload">
+          <div class="upload-zone" id="upload-zone">
+            <input type="file" id="file-input" accept=".txt,.md,.docx,.doc,.rtf,.csv,.json,.xml,.html,.htm" />
+            <div class="upload-icon">📄</div>
+            <div class="upload-text">גרור קובץ לכאן או לחץ לבחירה</div>
+            <div class="upload-hint">תומך ב: .txt .md .docx .doc .rtf .csv .json .xml</div>
+          </div>
+          <div id="file-info" style="display:none"></div>
+          <div id="file-alert"></div>
+          <div style="margin-top:12px" id="text-preview-wrap" style="display:none">
+            <label>תצוגה מקדימה של הטקסט שחולץ</label>
+            <textarea id="text-preview" style="height:100px;font-size:0.75rem;direction:rtl" readonly placeholder="הטקסט שחולץ מהקובץ יופיע כאן..."></textarea>
+            <div style="font-size:0.72rem;color:var(--text3);margin-top:4px" id="char-count"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Generate button -->
+      <div class="generate-wrap">
+        <button class="btn btn-primary btn-full" id="generate-btn" onclick="startGeneration()" disabled>
+          <span id="gen-btn-icon">✨</span>
+          <span id="gen-btn-text">צור מסמך HTML אינטראקטיבי</span>
+        </button>
+        <div class="progress-wrap" id="progress-wrap" style="display:none">
+          <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+          <div class="progress-text" id="progress-text">מאתחל...</div>
+        </div>
+      </div>
+
+      <!-- API Settings -->
+      <div class="section">
+        <div class="section-header" onclick="toggleSection('api')">
+          <span class="section-title">⚙️ הגדרות API</span>
+          <span class="section-toggle open" id="toggle-api">▼</span>
+        </div>
+        <div class="section-body" id="body-api">
+          <label>ספק / Endpoint URL</label>
+          <select id="provider-select" onchange="onProviderChange()">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="groq">Groq</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="azure">Azure OpenAI</option>
+            <option value="custom">Custom Endpoint</option>
+          </select>
+          <label>Endpoint URL</label>
+          <input type="url" id="api-url" placeholder="https://api.openai.com/v1/chat/completions" />
+          <label>API Key</label>
+          <input type="password" id="api-key" placeholder="sk-..." autocomplete="off" />
+          <label>מודל</label>
+          <input type="text" id="model-name" placeholder="gpt-4o" />
+          <div class="preset-row" id="model-presets"></div>
+          <label>Temperature</label>
+          <input type="text" id="temperature" value="0.7" style="width:80px" />
+          <label>Max Output Tokens</label>
+          <input type="text" id="max-tokens" value="16000" style="width:100px" />
+          <div class="toggle-row">
+            <span class="toggle-label">Streaming (מומלץ)</span>
+            <label class="toggle">
+              <input type="checkbox" id="streaming-toggle" checked />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div style="margin-top:14px;display:flex;gap:8px">
+            <button class="btn btn-secondary btn-sm" onclick="saveSettings()">💾 שמור</button>
+            <button class="btn btn-ghost btn-sm" onclick="testConnection()">🔗 בדוק חיבור</button>
+          </div>
+          <div id="api-test-result"></div>
+        </div>
+      </div>
+
+      <!-- Prompt Settings -->
+      <div class="section">
+        <div class="section-header" onclick="toggleSection('prompt')">
+          <span class="section-title">💬 הגדרות פרומפט</span>
+          <span class="section-toggle" id="toggle-prompt">▼</span>
+        </div>
+        <div class="section-body hidden" id="body-prompt">
+          <label>שפת הפלט</label>
+          <select id="output-lang">
+            <option value="auto">זיהוי אוטומטי (כמו הקובץ)</option>
+            <option value="he">עברית</option>
+            <option value="en">English</option>
+          </select>
+          <div class="toggle-row">
+            <span class="toggle-label">RTL (ימין לשמאל)</span>
+            <label class="toggle">
+              <input type="checkbox" id="rtl-toggle" checked />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <label>סגנון עיצוב</label>
+          <select id="style-preset">
+            <option value="infographic">אינפוגרפיקה עסקית</option>
+            <option value="report">דוח מקצועי</option>
+            <option value="dashboard">דשבורד / מדדים</option>
+            <option value="presentation">מצגת</option>
+            <option value="magazine">מגזין / כתבה</option>
+          </select>
+          <label>הנחיות נוספות (אופציונלי)</label>
+          <textarea id="extra-instructions" placeholder="הוסף הנחיות ספציפיות לפי הצורך..."></textarea>
+          <label>System Prompt (מתקדם)</label>
+          <textarea id="system-prompt" style="height:160px;font-size:0.73rem;direction:ltr"></textarea>
+          <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="resetSystemPrompt()">↩ איפוס ברירת מחדל</button>
+        </div>
+      </div>
+
+      <!-- Metrics -->
+      <div class="section">
+        <div class="section-header" onclick="toggleSection('metrics')">
+          <span class="section-title">📊 מדדי ביצועים</span>
+          <span class="section-toggle" id="toggle-metrics">▼</span>
+        </div>
+        <div class="section-body hidden" id="body-metrics">
+          <div id="metrics-empty" style="color:var(--text3);font-size:0.82rem;text-align:center;padding:16px 0">
+            מדדים יופיעו לאחר הרצה ראשונה
+          </div>
+          <div id="metrics-content" style="display:none">
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <div class="metric-label">Tokens In</div>
+                <div class="metric-value blue" id="m-tokens-in">0</div>
+                <div class="metric-sub">prompt tokens</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Tokens Out</div>
+                <div class="metric-value green" id="m-tokens-out">0</div>
+                <div class="metric-sub">completion tokens</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">סה"כ Tokens</div>
+                <div class="metric-value purple" id="m-tokens-total">0</div>
+                <div class="metric-sub">total tokens</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">זמן תגובה</div>
+                <div class="metric-value yellow" id="m-latency">0</div>
+                <div class="metric-sub">milliseconds</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">אורך פלט</div>
+                <div class="metric-value blue" id="m-output-chars">0</div>
+                <div class="metric-sub">תווים</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">TTFT</div>
+                <div class="metric-value green" id="m-ttft">—</div>
+                <div class="metric-sub">זמן לטוקן ראשון</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">תו"ש (TPS)</div>
+                <div class="metric-value purple" id="m-tps">0</div>
+                <div class="metric-sub">tokens/second</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">עלות משוערת</div>
+                <div class="metric-value yellow" id="m-cost">$—</div>
+                <div class="metric-sub" id="m-cost-model">לפי מחירון</div>
+              </div>
+            </div>
+            <div style="margin-top:12px">
+              <div style="font-size:0.72rem;color:var(--text3);margin-bottom:6px">היסטוריית הרצות</div>
+              <div id="run-history" style="max-height:120px;overflow-y:auto;font-size:0.75rem;color:var(--text2)"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /sidebar -->
+
+    <!-- ═══ PREVIEW AREA ═══ -->
+    <div class="preview-area">
+      <div class="status-bar">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">מוכן — בחר קובץ והגדר API להתחלה</span>
+      </div>
+      <div class="preview-toolbar">
+        <div class="preview-tabs">
+          <button class="tab-btn active" id="tab-preview" onclick="switchTab('preview')">👁️ תצוגה מקדימה</button>
+          <button class="tab-btn" id="tab-source" onclick="switchTab('source')">💻 קוד מקור</button>
+        </div>
+        <div class="preview-actions">
+          <button class="btn btn-secondary btn-sm" id="copy-btn" onclick="copyHTML()" disabled>📋 העתק HTML</button>
+          <button class="btn btn-primary btn-sm" id="download-btn" onclick="downloadHTML()" disabled>⬇️ הורד HTML</button>
+        </div>
+      </div>
+      <div class="preview-content">
+        <div class="empty-state" id="empty-state">
+          <div class="empty-state-icon">🖼️</div>
+          <p>תוצאת ה-HTML האינטראקטיבי תופיע כאן</p>
+          <p style="font-size:0.8rem;color:var(--text3)">בחר קובץ, הגדר API ולחץ "צור"</p>
+        </div>
+        <iframe id="output-iframe" style="display:none" sandbox="allow-scripts allow-same-origin"></iframe>
+        <pre id="source-view"></pre>
+      </div>
+    </div><!-- /preview -->
+
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════ */
+let extractedText = '';
+let generatedHTML = '';
+let currentFile = null;
+let isGenerating = false;
+let sessionTokensIn = 0;
+let sessionTokensOut = 0;
+let runHistory = [];
+
+/* ═══════════════════════════════════════════════
+   ZIP / DOCX PARSER
+═══════════════════════════════════════════════ */
+async function readZipEntries(buffer) {
+  const data = new Uint8Array(buffer);
+  const view = new DataView(buffer);
+  const entries = {};
+
+  // Find End of Central Directory (EOCD) signature: 0x06054b50
+  let eocdOffset = -1;
+  for (let i = data.length - 22; i >= 0; i--) {
+    if (view.getUint32(i, true) === 0x06054b50) { eocdOffset = i; break; }
+  }
+  if (eocdOffset === -1) return null;
+
+  const cdOffset = view.getUint32(eocdOffset + 16, true);
+  const cdCount  = view.getUint16(eocdOffset + 10, true);
+
+  let pos = cdOffset;
+  for (let i = 0; i < cdCount; i++) {
+    if (view.getUint32(pos, true) !== 0x02014b50) break;
+    const compression = view.getUint16(pos + 10, true);
+    const compSize    = view.getUint32(pos + 20, true);
+    const uncompSize  = view.getUint32(pos + 24, true);
+    const fnLen       = view.getUint16(pos + 28, true);
+    const extraLen    = view.getUint16(pos + 30, true);
+    const cmtLen      = view.getUint16(pos + 32, true);
+    const localOffset = view.getUint32(pos + 42, true);
+    const fname       = new TextDecoder().decode(data.slice(pos + 46, pos + 46 + fnLen));
+    entries[fname] = { compression, compSize, uncompSize, localOffset };
+    pos += 46 + fnLen + extraLen + cmtLen;
+  }
+
+  async function getFile(name) {
+    const e = entries[name];
+    if (!e) return null;
+    const lh = e.localOffset;
+    const fnLen2  = view.getUint16(lh + 26, true);
+    const extLen2 = view.getUint16(lh + 28, true);
+    const dataStart = lh + 30 + fnLen2 + extLen2;
+    const raw = data.slice(dataStart, dataStart + e.compSize);
+    if (e.compression === 0) return raw;
+    if (e.compression === 8) {
+      try {
+        const ds = new DecompressionStream('deflate-raw');
+        const writer = ds.writable.getWriter();
+        writer.write(raw); writer.close();
+        const out = []; const reader = ds.readable.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break; out.push(value);
+        }
+        const total = out.reduce((s, a) => s + a.length, 0);
+        const result = new Uint8Array(total); let off = 0;
+        for (const chunk of out) { result.set(chunk, off); off += chunk.length; }
+        return result;
+      } catch (err) { console.error('deflate error', err); return null; }
+    }
+    return null;
+  }
+
+  return { entries: Object.keys(entries), getFile };
+}
+
+function extractTextFromXml(bytes) {
+  if (!bytes) return '';
+  const xml = new TextDecoder('utf-8').decode(bytes);
+  // Remove XML tags, keep text content
+  let text = xml
+    .replace(/<w:br[^>]*\/>/g, '\n')
+    .replace(/<w:p[ >][^>]*>/g, '\n')
+    .replace(/<\/w:p>/g, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&')
+    .replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&#x[0-9A-Fa-f]+;/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return text;
+}
+
+async function extractDocxText(buffer) {
+  const zip = await readZipEntries(buffer);
+  if (!zip) throw new Error('לא ניתן לקרוא קובץ ZIP/DOCX');
+  const xmlBytes = await zip.getFile('word/document.xml');
+  if (!xmlBytes) throw new Error('לא נמצא document.xml');
+  return extractTextFromXml(xmlBytes);
+}
+
+async function extractRtfText(text) {
+  // Basic RTF stripper
+  return text
+    .replace(/\{[^{}]*\}/g, '')
+    .replace(/\\[a-z]+\d* ?/g, '')
+    .replace(/[{}\\]/g, '')
+    .replace(/\r\n|\r|\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/* ═══════════════════════════════════════════════
+   FILE HANDLING
+═══════════════════════════════════════════════ */
+const uploadZone = document.getElementById('upload-zone');
+const fileInput  = document.getElementById('file-input');
+
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+async function handleFile(file) {
+  currentFile = file;
+  const ext = file.name.split('.').pop().toLowerCase();
+  setStatus('reading', `קורא קובץ: ${file.name}...`);
+  setAlert('file-alert', '');
+
+  try {
+    let text = '';
+    if (['txt','md','csv','json','xml','html','htm'].includes(ext)) {
+      text = await file.text();
+    } else if (ext === 'docx') {
+      const buf = await file.arrayBuffer();
+      text = await extractDocxText(buf);
+    } else if (ext === 'rtf') {
+      const raw = await file.text();
+      text = await extractRtfText(raw);
+    } else if (ext === 'doc') {
+      // Legacy DOC - attempt basic extraction
+      const buf = await file.arrayBuffer();
+      const arr = new Uint8Array(buf);
+      // Extract printable ASCII/UTF-8 runs
+      let chars = [];
+      for (let i = 0; i < arr.length; i++) {
+        if (arr[i] >= 32 && arr[i] < 127) chars.push(String.fromCharCode(arr[i]));
+        else if (arr[i] === 13 || arr[i] === 10) chars.push('\n');
+      }
+      text = chars.join('').replace(/\n{3,}/g, '\n\n').trim();
+      if (text.length < 100) throw new Error('קובץ DOC ישן — לא ניתן לחלץ טקסט. המר ל-DOCX ונסה שוב.');
+      setAlert('file-alert', `<div class="alert alert-warn">⚠️ קבצי .doc ישנים נתמכים בצורה חלקית. לתוצאות טובות יותר, שמור כ-DOCX.</div>`);
+    } else {
+      throw new Error(`סוג קובץ לא נתמך: .${ext}`);
+    }
+
+    extractedText = text;
+    showFileInfo(file, text);
+    setStatus('done', `קובץ נטען — ${text.length.toLocaleString()} תווים, ${countWords(text).toLocaleString()} מילים`);
+    document.getElementById('generate-btn').disabled = !hasApiConfig();
+  } catch (err) {
+    setStatus('error', `שגיאה בקריאת הקובץ: ${err.message}`);
+    setAlert('file-alert', `<div class="alert alert-err">❌ ${err.message}</div>`);
+    document.getElementById('generate-btn').disabled = true;
+  }
+}
+
+function showFileInfo(file, text) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  const icons = {txt:'📝',md:'📋',docx:'📄',doc:'📄',rtf:'📑',csv:'📊',json:'🔧',xml:'🔖',html:'🌐',htm:'🌐'};
+  const icon = icons[ext] || '📄';
+  document.getElementById('file-info').style.display = 'block';
+  document.getElementById('file-info').innerHTML = `
+    <div class="file-badge">
+      ${icon} <span class="fname">${file.name}</span>
+      <span style="color:var(--text3)">${(file.size/1024).toFixed(1)}KB</span>
+      <span class="remove-file" onclick="removeFile()" title="הסר קובץ">✕</span>
+    </div>`;
+  document.getElementById('text-preview-wrap').style.display = 'block';
+  document.getElementById('text-preview').value = text.slice(0, 2000) + (text.length > 2000 ? '\n...(חלקי)' : '');
+  document.getElementById('char-count').textContent =
+    `${text.length.toLocaleString()} תווים | ${countWords(text).toLocaleString()} מילים | ~${Math.round(text.length/4).toLocaleString()} tokens`;
+}
+
+function removeFile() {
+  currentFile = null; extractedText = '';
+  document.getElementById('file-info').style.display = 'none';
+  document.getElementById('file-info').innerHTML = '';
+  document.getElementById('text-preview-wrap').style.display = 'none';
+  document.getElementById('text-preview').value = '';
+  document.getElementById('char-count').textContent = '';
+  document.getElementById('generate-btn').disabled = true;
+  fileInput.value = '';
+  setAlert('file-alert','');
+  setStatus('idle','מוכן — בחר קובץ והגדר API להתחלה');
+}
+
+function countWords(text) {
+  return text.trim().split(/\s+/).filter(w => w.length > 0).length;
+}
+
+/* ═══════════════════════════════════════════════
+   SYSTEM PROMPT
+═══════════════════════════════════════════════ */
+const DEFAULT_SYSTEM_PROMPT = `You are an expert web developer and data visualization specialist. Your task is to transform a provided document into a stunning, interactive single-page HTML infographic.
+
+CRITICAL RULES:
+1. Output ONLY valid HTML — no markdown, no explanation, no code fences. Start with <!DOCTYPE html>.
+2. The HTML must be completely self-contained. Embed Chart.js from CDN (https://cdn.jsdelivr.net/npm/chart.js), Tailwind CSS from CDN (https://cdn.tailwindcss.com), and Heebo font from Google Fonts.
+3. DO NOT use Mermaid JS or raw SVG.
+4. Use emojis as icons throughout.
+
+DESIGN REQUIREMENTS:
+- Gradient header with title and subtitle extracted from the document
+- At least 2 meaningful Chart.js visualizations (bar, doughnut, radar, line — whichever fits)
+- Info cards for key entities, companies, people, or concepts with hover effects
+- Key statistics displayed prominently with large numbers
+- A process flow or timeline if the document describes a sequence
+- Responsive grid layout
+- RTL support with dir="rtl" and lang="he" if the document is in Hebrew
+
+COLOR PALETTE: Use vibrant blues (#0ea5e9 → #2563eb) with emerald (#10b981) accents.
+
+CONTENT STRATEGY:
+- Extract and highlight the 3-5 most important statistics or numbers
+- Identify the main entities (companies, technologies, people) and create cards for them
+- Determine what comparisons or distributions exist — use charts for those
+- Add a summary section with bullet points of key takeaways
+
+OUTPUT: A single, complete, valid HTML file that renders beautifully in a browser.`;
+
+document.getElementById('system-prompt').value = DEFAULT_SYSTEM_PROMPT;
+
+function resetSystemPrompt() {
+  document.getElementById('system-prompt').value = DEFAULT_SYSTEM_PROMPT;
+}
+
+function buildUserMessage(text) {
+  const lang  = document.getElementById('output-lang').value;
+  const style = document.getElementById('style-preset').value;
+  const rtl   = document.getElementById('rtl-toggle').checked;
+  const extra = document.getElementById('extra-instructions').value.trim();
+
+  const styleLabels = {
+    infographic: 'Business Infographic',
+    report:      'Professional Report',
+    dashboard:   'Data Dashboard',
+    presentation:'Presentation Slides',
+    magazine:    'Magazine Article'
+  };
+
+  let msg = `Convert the following document into an interactive HTML ${styleLabels[style]}.\n`;
+  if (lang !== 'auto') msg += `Output language: ${lang === 'he' ? 'Hebrew (RTL)' : 'English (LTR)'}.\n`;
+  if (rtl) msg += `Use RTL layout (dir="rtl").\n`;
+  if (extra) msg += `Additional instructions: ${extra}\n`;
+  msg += `\n--- DOCUMENT START ---\n${text}\n--- DOCUMENT END ---`;
+  return msg;
+}
+
+/* ═══════════════════════════════════════════════
+   API PROVIDERS
+═══════════════════════════════════════════════ */
+const PROVIDERS = {
+  openai: {
+    url: 'https://api.openai.com/v1/chat/completions',
+    models: ['gpt-4o','gpt-4o-mini','gpt-4-turbo','gpt-3.5-turbo'],
+    costs: { 'gpt-4o': [0.005, 0.015], 'gpt-4o-mini': [0.00015, 0.0006], 'gpt-4-turbo': [0.01, 0.03] }
+  },
+  anthropic: {
+    url: 'https://api.anthropic.com/v1/messages',
+    models: ['claude-opus-4-8','claude-sonnet-4-6','claude-haiku-4-5-20251001'],
+    costs: { 'claude-opus-4-8': [0.015, 0.075], 'claude-sonnet-4-6': [0.003, 0.015], 'claude-haiku-4-5-20251001': [0.00025, 0.00125] }
+  },
+  groq: {
+    url: 'https://api.groq.com/openai/v1/chat/completions',
+    models: ['llama-3.3-70b-versatile','llama-3.1-8b-instant','gemma2-9b-it'],
+    costs: {}
+  },
+  openrouter: {
+    url: 'https://openrouter.ai/api/v1/chat/completions',
+    models: ['google/gemini-2.0-flash-001','meta-llama/llama-3.3-70b-instruct','anthropic/claude-sonnet-4-6'],
+    costs: {}
+  },
+  azure: {
+    url: 'https://<your-resource>.openai.azure.com/openai/deployments/<deployment>/chat/completions?api-version=2024-05-01-preview',
+    models: ['gpt-4o','gpt-4-turbo'],
+    costs: {}
+  },
+  custom: { url: '', models: [], costs: {} }
+};
+
+function onProviderChange() {
+  const p = document.getElementById('provider-select').value;
+  const pData = PROVIDERS[p] || PROVIDERS.custom;
+  if (pData.url) document.getElementById('api-url').value = pData.url;
+  const presetsEl = document.getElementById('model-presets');
+  presetsEl.innerHTML = pData.models.map(m =>
+    `<span class="preset-chip" onclick="document.getElementById('model-name').value='${m}'">${m}</span>`
+  ).join('');
+  if (pData.models.length) document.getElementById('model-name').value = pData.models[0];
+}
+
+/* ═══════════════════════════════════════════════
+   SETTINGS PERSISTENCE
+═══════════════════════════════════════════════ */
+function saveSettings() {
+  const s = {
+    provider: document.getElementById('provider-select').value,
+    url: document.getElementById('api-url').value,
+    key: document.getElementById('api-key').value,
+    model: document.getElementById('model-name').value,
+    temp: document.getElementById('temperature').value,
+    maxTokens: document.getElementById('max-tokens').value,
+    streaming: document.getElementById('streaming-toggle').checked,
+    lang: document.getElementById('output-lang').value,
+    rtl: document.getElementById('rtl-toggle').checked,
+    style: document.getElementById('style-preset').value,
+    sysPrompt: document.getElementById('system-prompt').value
+  };
+  localStorage.setItem('docgen_settings', JSON.stringify(s));
+  setAlert('api-test-result','<div class="alert alert-ok">✅ הגדרות נשמרו</div>');
+  setTimeout(() => setAlert('api-test-result',''), 2000);
+  if (extractedText) document.getElementById('generate-btn').disabled = false;
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem('docgen_settings');
+    if (!raw) { onProviderChange(); return; }
+    const s = JSON.parse(raw);
+    if (s.provider) { document.getElementById('provider-select').value = s.provider; onProviderChange(); }
+    if (s.url)      document.getElementById('api-url').value = s.url;
+    if (s.key)      document.getElementById('api-key').value = s.key;
+    if (s.model)    document.getElementById('model-name').value = s.model;
+    if (s.temp)     document.getElementById('temperature').value = s.temp;
+    if (s.maxTokens) document.getElementById('max-tokens').value = s.maxTokens;
+    if (s.streaming !== undefined) document.getElementById('streaming-toggle').checked = s.streaming;
+    if (s.lang)     document.getElementById('output-lang').value = s.lang;
+    if (s.rtl !== undefined) document.getElementById('rtl-toggle').checked = s.rtl;
+    if (s.style)    document.getElementById('style-preset').value = s.style;
+    if (s.sysPrompt) document.getElementById('system-prompt').value = s.sysPrompt;
+  } catch(e) { onProviderChange(); }
+}
+
+function hasApiConfig() {
+  return !!(document.getElementById('api-url').value && document.getElementById('api-key').value);
+}
+
+/* ═══════════════════════════════════════════════
+   API CALL
+═══════════════════════════════════════════════ */
+async function callAPI(systemPrompt, userMessage, onChunk) {
+  const url      = document.getElementById('api-url').value.trim();
+  const apiKey   = document.getElementById('api-key').value.trim();
+  const model    = document.getElementById('model-name').value.trim();
+  const temp     = parseFloat(document.getElementById('temperature').value) || 0.7;
+  const maxTok   = parseInt(document.getElementById('max-tokens').value) || 16000;
+  const stream   = document.getElementById('streaming-toggle').checked;
+  const provider = document.getElementById('provider-select').value;
+
+  if (!url || !apiKey) throw new Error('הגדר Endpoint URL ו-API Key בהגדרות');
+
+  const isAnthropic = provider === 'anthropic' || url.includes('anthropic.com');
+
+  let body, headers;
+  if (isAnthropic) {
+    headers = {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    };
+    body = JSON.stringify({
+      model, max_tokens: maxTok, temperature: temp,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userMessage }],
+      stream
+    });
+  } else {
+    headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    };
+    body = JSON.stringify({
+      model, max_tokens: maxTok, temperature: temp,
+      stream,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage }
+      ]
+    });
+  }
+
+  const res = await fetch(url, { method: 'POST', headers, body });
+  if (!res.ok) {
+    const errText = await res.text();
+    let msg = `שגיאת API ${res.status}`;
+    try { const j = JSON.parse(errText); msg = j.error?.message || j.message || msg; } catch(e) {}
+    throw new Error(msg);
+  }
+
+  let tokensIn = 0, tokensOut = 0;
+
+  if (!stream) {
+    const json = await res.json();
+    let content = '';
+    if (isAnthropic) {
+      content = json.content?.[0]?.text || '';
+      tokensIn  = json.usage?.input_tokens  || 0;
+      tokensOut = json.usage?.output_tokens || 0;
+    } else {
+      content = json.choices?.[0]?.message?.content || '';
+      tokensIn  = json.usage?.prompt_tokens     || 0;
+      tokensOut = json.usage?.completion_tokens || 0;
+    }
+    onChunk(content, true);
+    return { tokensIn, tokensOut };
+  }
+
+  // Streaming
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop();
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed === 'data: [DONE]') continue;
+      const dataStr = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed;
+      try {
+        const json = JSON.parse(dataStr);
+        let chunk = '';
+        if (isAnthropic) {
+          if (json.type === 'content_block_delta') chunk = json.delta?.text || '';
+          if (json.type === 'message_delta') { tokensOut = json.usage?.output_tokens || tokensOut; }
+          if (json.type === 'message_start')  { tokensIn  = json.message?.usage?.input_tokens || 0; }
+        } else {
+          chunk = json.choices?.[0]?.delta?.content || '';
+          if (json.usage) {
+            tokensIn  = json.usage.prompt_tokens     || tokensIn;
+            tokensOut = json.usage.completion_tokens || tokensOut;
+          }
+        }
+        if (chunk) onChunk(chunk, false);
+      } catch(e) { /* skip malformed */ }
+    }
+  }
+  return { tokensIn, tokensOut };
+}
+
+/* ═══════════════════════════════════════════════
+   GENERATION
+═══════════════════════════════════════════════ */
+async function startGeneration() {
+  if (isGenerating) return;
+  if (!extractedText) { setAlert('file-alert','<div class="alert alert-warn">⚠️ בחר קובץ תחילה</div>'); return; }
+  if (!hasApiConfig()) { setAlert('api-test-result','<div class="alert alert-warn">⚠️ הגדר API Key ו-Endpoint</div>'); return; }
+
+  isGenerating = true;
+  generatedHTML = '';
+  const startTime = Date.now();
+  let firstTokenTime = null;
+
+  const btn = document.getElementById('generate-btn');
+  btn.disabled = true;
+  document.getElementById('gen-btn-icon').textContent = '⏳';
+  document.getElementById('gen-btn-text').textContent = 'מייצר...';
+  document.getElementById('progress-wrap').style.display = 'block';
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('output-iframe').style.display = 'none';
+  document.getElementById('source-view').style.display = 'none';
+  document.getElementById('copy-btn').disabled = true;
+  document.getElementById('download-btn').disabled = true;
+  switchTab('preview');
+  setProgress(5, 'שולח בקשה ל-API...');
+  setStatus('running', 'יוצר HTML אינטראקטיבי...');
+
+  const sysPrompt  = document.getElementById('system-prompt').value;
+  const userMsg    = buildUserMessage(extractedText);
+
+  let htmlBuffer = '';
+  let chunkCount = 0;
+
+  try {
+    const result = await callAPI(sysPrompt, userMsg, (chunk, isFinal) => {
+      if (!firstTokenTime && chunk) {
+        firstTokenTime = Date.now() - startTime;
+        setProgress(15, 'מקבל תגובה...');
+      }
+      htmlBuffer += chunk;
+      chunkCount++;
+
+      // Update progress estimate
+      const progress = Math.min(90, 15 + (htmlBuffer.length / 15000) * 75);
+      setProgress(progress, `מקבל HTML... (${htmlBuffer.length.toLocaleString()} תווים)`);
+
+      // Live preview every ~50 chunks
+      if (chunkCount % 50 === 0 || isFinal) {
+        previewPartial(htmlBuffer);
+      }
+    });
+
+    generatedHTML = cleanHTML(htmlBuffer);
+    const elapsed = Date.now() - startTime;
+
+    setProgress(100, 'הושלם!');
+    showResult(generatedHTML);
+    setStatus('done', `✅ הושלם תוך ${(elapsed/1000).toFixed(1)}ש׳ | ${result.tokensIn.toLocaleString()} tokens in, ${result.tokensOut.toLocaleString()} tokens out`);
+    updateMetrics(result.tokensIn, result.tokensOut, elapsed, generatedHTML.length, firstTokenTime, startTime);
+
+  } catch (err) {
+    setStatus('error', `❌ שגיאה: ${err.message}`);
+    setProgress(0, '');
+    document.getElementById('progress-wrap').style.display = 'none';
+    document.getElementById('empty-state').style.display = 'flex';
+    document.getElementById('empty-state').innerHTML = `
+      <div class="empty-state-icon">❌</div>
+      <p style="color:var(--danger)">${err.message}</p>
+      <p style="font-size:0.8rem;color:var(--text3)">בדוק את הגדרות ה-API ונסה שוב</p>`;
+  } finally {
+    isGenerating = false;
+    btn.disabled = false;
+    document.getElementById('gen-btn-icon').textContent = '✨';
+    document.getElementById('gen-btn-text').textContent = 'צור מסמך HTML אינטראקטיבי';
+    setTimeout(() => { document.getElementById('progress-wrap').style.display = 'none'; }, 2000);
+  }
+}
+
+function cleanHTML(raw) {
+  // Strip markdown code fences if AI wrapped output
+  let html = raw.trim();
+  if (html.startsWith('```html')) html = html.slice(7);
+  else if (html.startsWith('```'))  html = html.slice(3);
+  if (html.endsWith('```')) html = html.slice(0, -3);
+  return html.trim();
+}
+
+function previewPartial(html) {
+  // Show partial output in iframe for streaming feedback
+  const iframe = document.getElementById('output-iframe');
+  iframe.style.display = 'block';
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open(); doc.write(html); doc.close();
+  } catch(e) {}
+}
+
+function showResult(html) {
+  const iframe = document.getElementById('output-iframe');
+  iframe.style.display = 'block';
+  document.getElementById('source-view').textContent = html;
+  try {
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open(); doc.write(html); doc.close();
+  } catch(e) {}
+  document.getElementById('copy-btn').disabled = false;
+  document.getElementById('download-btn').disabled = false;
+}
+
+/* ═══════════════════════════════════════════════
+   METRICS
+═══════════════════════════════════════════════ */
+function updateMetrics(tokIn, tokOut, latencyMs, outputChars, ttft, startTime) {
+  sessionTokensIn  += tokIn;
+  sessionTokensOut += tokOut;
+  const total = tokIn + tokOut;
+  const tps   = tokOut > 0 && latencyMs > 0 ? Math.round(tokOut / (latencyMs / 1000)) : 0;
+
+  // Cost estimate
+  const provider = document.getElementById('provider-select').value;
+  const model    = document.getElementById('model-name').value;
+  const costs    = PROVIDERS[provider]?.costs?.[model];
+  let costStr = '$—', costLabel = 'לא ידוע';
+  if (costs) {
+    const cost = (tokIn/1000) * costs[0] + (tokOut/1000) * costs[1];
+    costStr  = `$${cost.toFixed(4)}`;
+    costLabel = `$${costs[0]}/1K in, $${costs[1]}/1K out`;
+  }
+
+  document.getElementById('m-tokens-in').textContent    = tokIn.toLocaleString();
+  document.getElementById('m-tokens-out').textContent   = tokOut.toLocaleString();
+  document.getElementById('m-tokens-total').textContent = total.toLocaleString();
+  document.getElementById('m-latency').textContent      = latencyMs.toLocaleString() + 'ms';
+  document.getElementById('m-output-chars').textContent = outputChars.toLocaleString();
+  document.getElementById('m-ttft').textContent         = ttft ? ttft + 'ms' : '—';
+  document.getElementById('m-tps').textContent          = tps + '/s';
+  document.getElementById('m-cost').textContent         = costStr;
+  document.getElementById('m-cost-model').textContent   = costLabel;
+
+  document.getElementById('metrics-empty').style.display   = 'none';
+  document.getElementById('metrics-content').style.display = 'block';
+
+  // Session tokens in header
+  document.getElementById('session-tokens').style.display = 'inline-flex';
+  document.getElementById('sess-in').textContent  = sessionTokensIn.toLocaleString();
+  document.getElementById('sess-out').textContent = sessionTokensOut.toLocaleString();
+
+  // History
+  runHistory.unshift({
+    time: new Date().toLocaleTimeString('he-IL'),
+    model: document.getElementById('model-name').value,
+    tokIn, tokOut, latencyMs, costStr
+  });
+  const histEl = document.getElementById('run-history');
+  histEl.innerHTML = runHistory.map(r =>
+    `<div style="padding:4px 0;border-bottom:1px solid var(--border)">
+      ${r.time} · ${r.model} · ${(r.tokIn+r.tokOut).toLocaleString()} tokens · ${r.latencyMs}ms · ${r.costStr}
+    </div>`
+  ).join('');
+
+  // Open metrics section
+  openSection('metrics');
+}
+
+/* ═══════════════════════════════════════════════
+   CONNECTION TEST
+═══════════════════════════════════════════════ */
+async function testConnection() {
+  const url    = document.getElementById('api-url').value.trim();
+  const apiKey = document.getElementById('api-key').value.trim();
+  const model  = document.getElementById('model-name').value.trim();
+
+  if (!url || !apiKey) {
+    setAlert('api-test-result','<div class="alert alert-warn">⚠️ הכנס URL ו-API Key</div>');
+    return;
+  }
+  setAlert('api-test-result','<div class="alert alert-ok">⏳ בודק חיבור...</div>');
+  try {
+    let count = 0;
+    await callAPI('Reply with: OK', 'ping', (chunk) => { count++; });
+    setAlert('api-test-result',`<div class="alert alert-ok">✅ חיבור תקין! מודל: ${model}</div>`);
+  } catch(err) {
+    setAlert('api-test-result',`<div class="alert alert-err">❌ ${err.message}</div>`);
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   UI HELPERS
+═══════════════════════════════════════════════ */
+function setStatus(type, text) {
+  const dot = document.getElementById('status-dot');
+  dot.className = 'status-dot' + (type === 'running' ? ' running' : type === 'done' ? ' done' : type === 'error' ? ' error' : '');
+  document.getElementById('status-text').textContent = text;
+}
+
+function setProgress(pct, text) {
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-text').textContent = text;
+}
+
+function setAlert(elId, html) {
+  document.getElementById(elId).innerHTML = html;
+}
+
+function switchTab(tab) {
+  document.getElementById('tab-preview').classList.toggle('active', tab === 'preview');
+  document.getElementById('tab-source').classList.toggle('active', tab === 'source');
+  const iframe = document.getElementById('output-iframe');
+  const src    = document.getElementById('source-view');
+  if (tab === 'preview') {
+    iframe.style.display = generatedHTML ? 'block' : 'none';
+    src.style.display = 'none';
+    if (!generatedHTML) document.getElementById('empty-state').style.display = 'flex';
+  } else {
+    iframe.style.display = 'none';
+    src.style.display = generatedHTML ? 'block' : 'none';
+    document.getElementById('empty-state').style.display = generatedHTML ? 'none' : 'flex';
+  }
+}
+
+function toggleSection(id) {
+  const body   = document.getElementById(`body-${id}`);
+  const toggle = document.getElementById(`toggle-${id}`);
+  const hidden = body.classList.toggle('hidden');
+  toggle.classList.toggle('open', !hidden);
+}
+
+function openSection(id) {
+  const body   = document.getElementById(`body-${id}`);
+  const toggle = document.getElementById(`toggle-${id}`);
+  body.classList.remove('hidden');
+  toggle.classList.add('open');
+}
+
+async function copyHTML() {
+  if (!generatedHTML) return;
+  await navigator.clipboard.writeText(generatedHTML);
+  const btn = document.getElementById('copy-btn');
+  btn.textContent = '✅ הועתק!';
+  setTimeout(() => { btn.innerHTML = '📋 העתק HTML'; }, 2000);
+}
+
+function downloadHTML() {
+  if (!generatedHTML) return;
+  const fname = currentFile
+    ? currentFile.name.replace(/\.[^.]+$/, '') + '-interactive.html'
+    : 'document-interactive.html';
+  const blob = new Blob([generatedHTML], { type: 'text/html;charset=utf-8' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: fname });
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* ═══════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════ */
+loadSettings();
+onProviderChange();
+
+// Save settings on any change to key fields
+['api-url','api-key','model-name','temperature','max-tokens'].forEach(id => {
+  document.getElementById(id).addEventListener('blur', saveSettings);
+});
+document.getElementById('streaming-toggle').addEventListener('change', saveSettings);
+document.getElementById('provider-select').addEventListener('change', () => { onProviderChange(); });
+</script>
+</body>
+</html>
